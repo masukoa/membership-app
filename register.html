@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>会員登録</title>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
+      background: #f0f4f8;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .card {
+      background: white;
+      border-radius: 16px;
+      padding: 32px 24px;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    }
+    h1 {
+      font-size: 20px;
+      color: #1a1a2e;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+    .subtitle {
+      font-size: 13px;
+      color: #888;
+      text-align: center;
+      margin-bottom: 28px;
+    }
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #444;
+      margin-bottom: 6px;
+    }
+    input {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1.5px solid #ddd;
+      border-radius: 8px;
+      font-size: 15px;
+      margin-bottom: 18px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input:focus { border-color: #06C755; }
+    button {
+      width: 100%;
+      padding: 14px;
+      background: #06C755;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+    button:disabled { background: #aaa; cursor: not-allowed; }
+    #message {
+      margin-top: 16px;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      text-align: center;
+      display: none;
+    }
+    #message.success { background: #e6f9ee; color: #1a7a3f; display: block; }
+    #message.error { background: #fdecea; color: #b71c1c; display: block; }
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #888;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="card" id="app">
+  <div class="loading">読み込み中...</div>
+</div>
+
+<script>
+// =============================================
+// ここを自分の値に書き換えてください
+// =============================================
+const LIFF_ID = "2009411129-BHFuZprv";
+const SUPABASE_URL = "https://oklwnpyetvurpiwvvkhe.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_nIjrKZ8Pk6Jwvw3qVcSh6Q_1peUGqEr";
+// =============================================
+
+let userSub = null;
+
+async function init() {
+  try {
+    // LIFFを初期化する
+    await liff.init({ liffId: LIFF_ID });
+
+    // LINEにログインしていなければログイン画面へ
+    if (!liff.isLoggedIn()) {
+      liff.login();
+      return;
+    }
+
+    // LINEユーザー情報を取得する
+    const profile = await liff.getProfile();
+    userSub = liff.getDecodedIDToken().sub;
+
+    // すでに登録済みか確認する
+    const existing = await checkExistingMember(userSub);
+    if (existing) {
+      // 登録済みなら会員証ページへ飛ばす
+      window.location.href = "index.html";
+      return;
+    }
+
+    // 登録フォームを表示する
+    showForm(profile.displayName);
+
+  } catch (e) {
+    showError("初期化に失敗しました: " + e.message);
+  }
+}
+
+async function checkExistingMember(sub) {
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/members?line_sub=eq.${sub}&select=id`,
+    {
+      headers: {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": "Bearer " + SUPABASE_ANON_KEY
+      }
+    }
+  );
+  const data = await res.json();
+  return data.length > 0;
+}
+
+function showForm(lineDisplayName) {
+  document.getElementById("app").innerHTML = `
+    <h1>🪪 会員登録</h1>
+    <p class="subtitle">はじめての方は以下を入力してください</p>
+
+    <label>お名前（本名）</label>
+    <input type="text" id="full_name" placeholder="例：田中 太郎">
+
+    <label>会員番号</label>
+    <input type="text" id="member_number" placeholder="例：M-00123">
+
+    <label>有効期限</label>
+    <input type="date" id="expiry_date">
+
+    <button id="submitBtn" onclick="register()">登録する</button>
+    <div id="message"></div>
+  `;
+}
+
+async function register() {
+  const fullName = document.getElementById("full_name").value.trim();
+  const memberNumber = document.getElementById("member_number").value.trim();
+  const expiryDate = document.getElementById("expiry_date").value;
+
+  // 入力チェック
+  if (!fullName || !memberNumber || !expiryDate) {
+    showMessage("すべての項目を入力してください", "error");
+    return;
+  }
+
+  document.getElementById("submitBtn").disabled = true;
+  document.getElementById("submitBtn").textContent = "登録中...";
+
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/members`, {
+      method: "POST",
+      headers: {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": "Bearer " + SUPABASE_ANON_KEY,
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal"
+      },
+      body: JSON.stringify({
+        line_sub: userSub,
+        full_name: fullName,
+        member_number: memberNumber,
+        expiry_date: expiryDate
+      })
+    });
+
+    if (res.ok) {
+      showMessage("✅ 登録が完了しました！会員証を表示します...", "success");
+      setTimeout(() => {
+        window.location.href = "index.html";
+      }, 2000);
+    } else {
+      const err = await res.json();
+      showMessage("登録に失敗しました: " + JSON.stringify(err), "error");
+    }
+  } catch (e) {
+    showMessage("エラーが発生しました: " + e.message, "error");
+  }
+}
+
+function showMessage(text, type) {
+  const el = document.getElementById("message");
+  el.textContent = text;
+  el.className = type;
+  document.getElementById("submitBtn").disabled = false;
+  document.getElementById("submitBtn").textContent = "登録する";
+}
+
+function showError(msg) {
+  document.getElementById("app").innerHTML = `
+    <p style="color:red;text-align:center;">${msg}</p>
+  `;
+}
+
+// 起動
+init();
+</script>
+</body>
+</html>

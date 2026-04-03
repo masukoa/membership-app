@@ -67,9 +67,10 @@
 // =============================================
 // ここを自分の値に書き換えてください
 // =============================================
-const LIFF_ID      = "2009411129-BHFuZprv";
-const SUPABASE_URL = "https://oklwnpyetvurpiwvvkhe.supabase.co";
-const SUPABASE_KEY = "sb_publishable_nIjrKZ8Pk6Jwvw3qVcSh6Q_1peUGqEr";
+const LIFF_ID        = "2009411129-BHFuZprv";
+const SUPABASE_URL   = "https://oklwnpyetvurpiwvvkhe.supabase.co";
+const SUPABASE_KEY   = "sb_publishable_nIjrKZ8Pk6Jwvw3qVcSh6Q_1peUGqEr";
+const INDEX_LIFF_URL = "https://liff.line.me/2009411129-krHG0d1O";
 // =============================================
 
 let userSub = null;
@@ -84,7 +85,7 @@ async function init() {
     // すでに連携済みなら会員証へ
     const already = await findBySub(userSub);
     if (already) {
-      window.location.href = "index.html";
+      window.location.href = INDEX_LIFF_URL;
       return;
     }
 
@@ -116,7 +117,7 @@ function showForm() {
       placeholder="例：50172515"
       inputmode="numeric"
       autocomplete="off" autocorrect="off" spellcheck="false">
-    <p class="hint">お手元の会員証に記載されている番号</p>
+    <p class="hint">お手元の会員証に記載されている番号８桁</p>
 
     <label>お名前（カタカナ）</label>
     <input type="text" id="full_name"
@@ -142,13 +143,9 @@ async function linkAccount() {
     return;
   }
 
-  // カタカナかどうかチェック（ひらがな・漢字が混じっていたら警告）
   const katakanaOnly = /^[ァ-ヶー]+$/.test(fullName);
   if (!katakanaOnly) {
-    showMsg(
-      "お名前はカタカナで入力してください\n例：タナカタロウ",
-      "error"
-    );
+    showMsg("お名前はカタカナで入力してください\n例：タナカタロウ", "error");
     return;
   }
 
@@ -157,7 +154,6 @@ async function linkAccount() {
   btn.textContent = "確認中...";
 
   try {
-    // 会員番号＋カタカナ名前で検索
     const res = await fetch(
       `${SUPABASE_URL}/rest/v1/members?member_number=eq.${encodeURIComponent(memberNumber)}&full_name=eq.${encodeURIComponent(fullName)}&select=*`,
       { headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + SUPABASE_KEY } }
@@ -176,7 +172,6 @@ async function linkAccount() {
 
     const member = data[0];
 
-    // すでに別のLINEと連携済みか確認
     if (member.line_sub && member.line_sub !== userSub) {
       showMsg(
         "この会員情報はすでに別のLINEアカウントと連携済みです。\n事務局にお問い合わせください。",
@@ -187,7 +182,6 @@ async function linkAccount() {
       return;
     }
 
-    // idで1件だけline_subを書き込む
     const updateRes = await fetch(
       `${SUPABASE_URL}/rest/v1/members?id=eq.${member.id}`,
       {
@@ -204,7 +198,7 @@ async function linkAccount() {
 
     if (updateRes.ok) {
       showMsg("✅ 連携が完了しました！\n会員証を表示します...", "success");
-      setTimeout(() => { window.location.href = "index.html"; }, 2000);
+      setTimeout(() => { window.location.href = INDEX_LIFF_URL; }, 2000);
     } else {
       showMsg("連携に失敗しました。もう一度お試しください。", "error");
       btn.disabled = false;
@@ -228,5 +222,3 @@ init();
 </script>
 </body>
 </html>
-```
-
